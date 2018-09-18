@@ -2,22 +2,49 @@
   "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "variables": {
-    "elephantVNETName": "[last(split(parameters('elephantVNETId'), '/'))]",
-    "elephantSubnetName": "[concat(parameters('virtualMachines_elephant_name'), 'subnet')]",
+    "elephantVNETName": "[parameters('elephantVNETName')]",
+    "elephantVNETId": "[concat('/subscriptions/',variables('subscriptionId'), '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Network/virtualNetworks/', parameters('elephantVNETName'))]",
+    "elephantSubnetName": "[concat(parameters('elephantVMName'), 'subnet')]",
     "elephantSubnetFullName": "[concat(variables('elephantVNETName'), '/', variables('elephantSubnetName'))]",
-    "elephantSubnetId": "[concat(parameters('elephantVNETId'), '/subnets/', variables('elephantSubnetName'))]",
-    "elephantNicName": "[concat(parameters('virtualMachines_elephant_name'), 'nic')]",
-    "elephantPipName": "[concat(parameters('virtualMachines_elephant_name'), 'pip')]",
-    "elephantLBName": "[concat(parameters('virtualMachines_elephant_name'), 'lb')]",
-    "elephantAddressPoolName": "[concat(parameters('virtualMachines_elephant_name'), 'ap')]",
-    "elephantNSGName":"[concat(parameters('virtualMachines_elephant_name'), 'nsg')]",
-    "elephantLBFEName":"[concat(parameters('virtualMachines_elephant_name'), 'lbfe')]",
-    "elephantLBRuleName":"[concat(parameters('virtualMachines_elephant_name'), 'lbrule')]",
-    "elephantLBProbeName":"[concat(parameters('virtualMachines_elephant_name'), 'lbprobe')]",
-    "location": "[resourceGroup().location]"
+    "elephantSubnetId": "[concat(variables('elephantVNETId'), '/subnets/', variables('elephantSubnetName'))]",
+    "elephantNicName": "[concat(parameters('elephantVMName'), 'nic')]",
+    "elephantPipName": "[concat(parameters('elephantVMName'), 'pip')]",
+    "elephantLBName": "[concat(parameters('elephantVMName'), 'lb')]",
+    "elephantAddressPoolName": "[concat(parameters('elephantVMName'), 'ap')]",
+    "elephantNSGName":"[concat(parameters('elephantVMName'), 'nsg')]",
+    "elephantLBFEName":"[concat(parameters('elephantVMName'), 'lbfe')]",
+    "elephantLBRuleName":"[concat(parameters('elephantVMName'), 'lbrule')]",
+    "elephantLBProbeName":"[concat(parameters('elephantVMName'), 'lbprobe')]",
+    "location": "[resourceGroup().location]",
+    "setupScriptUri": "[concat('https://raw.githubusercontent.com/Nubeva/elephantLauncher/',parameters('scriptBranch'), '/runit.sh')]",
+    "subscriptionId": "[subscription().subscriptionId]",
+    "tenantId": "[subscription().tenantId]",
+    "loadBalancerFrontEndTarget": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('elephantLBName')), '/frontendIPConfigurations/', variables('elephantLBFEName'))]"
   },
   "parameters": {
-    "virtualMachines_elephant_name": {
+      "nuToken": {
+          "type": "string",
+          "metadata": {
+              "description": "Nubeva token taken from the docker launch command"
+          }
+      },
+    "azureClientId": {
+        "type": "string",
+        "metadata": {
+            "description":"Service principal Client ID / App ID"
+        }
+    },
+    "azurePassword": {
+        "type":"securestring",
+        "metadata": {
+            "description": "Service principal password"
+        }
+    },
+    "scriptBranch": {
+        "type": "string",
+        "defaultValue": "master"
+    },
+    "elephantVMName": {
       "type": "string",
       "defaultValue": "elephant"
     },
@@ -27,10 +54,10 @@
         "description": "ssh public-key for connecting to the elephant"
       }
     },
-    "elephantVNETId": {
+    "elephantVNETName": {
       "type": "string",
       "metadata": {
-        "description": "The full resource ID of the vnet to deploy into"
+        "description": "The name of the vnet within the deployed resourcegroup to deploy into"
       }
     },
     "elephantSubnetAddressPrefix": {
@@ -52,7 +79,7 @@
     },
     {
       "type": "Microsoft.Compute/virtualMachines",
-      "name": "[parameters('virtualMachines_elephant_name')]",
+      "name": "[parameters('elephantVMName')]",
       "apiVersion": "2017-12-01",
       "location": "[variables('location')]",
       "properties": {
@@ -73,7 +100,7 @@
               "dataDisks": []
           },
           "osProfile": {
-              "computerName": "[parameters('virtualMachines_elephant_name')]",
+              "computerName": "[parameters('elephantVMName')]",
               "adminUsername": "nubeva",
               "linuxConfiguration": {
                   "disablePasswordAuthentication": true,
@@ -101,6 +128,29 @@
       ]
   },
   {
+    "type": "Microsoft.Compute/virtualMachines/extensions",
+    "name": "[concat(parameters('elephantVMName'),'/CustomScriptExtension')]",
+    "apiVersion": "2017-03-30",
+    "location": "[variables('location')]",
+    "dependsOn": [
+        "[concat('Microsoft.Compute/virtualMachines/', parameters('elephantVMName'))]"
+    ],
+    "properties": {
+        "publisher": "Microsoft.Azure.Extensions",
+        "type": "CustomScript",
+       "typeHandlerVersion": "2.0",
+       "autoUpgradeMinorVersion":true,
+       "settings": {
+           "fileUris": [ "[variables('setupScriptUri')]" ],
+           "commandToExecute": "[concat('AZURE_SUBSCRIPTION_ID=',variables('subscriptionId'), ' AZURE_TENANT_ID=', variables('tenantId'), ' AZURE_CLIENT_ID=', parameters('azureClientId'), ' AZURE_CLIENT_SECRET=\"', parameters('azurePassword'),'\"', ' nutoken=', parameters('nuToken'), ' vnetid=',variables('elephantVNETId'), ' loadBalancerFrontEndTarget=',variables('loadBalancerFrontEndTarget'), ' resourceGroup=\"', resourceGroup().name, '\"', ' location=', variables('location'), ' bash runit.sh')]"
+       }
+   },
+   "dependsOn": [
+    "[concat('Microsoft.Compute/virtualMachines/', parameters('elephantVMName'))]",
+"[resourceId('Microsoft.Network/loadBalancers', variables('elephantLBName'))]"
+   ]
+},
+ {
     "type": "Microsoft.Network/publicIPAddresses",
     "sku": {
         "name": "Basic",
