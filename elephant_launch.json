@@ -1,0 +1,362 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "variables": {
+    "elephantVNETName": "[last(split(parameters('elephantVNETId'), '/'))]",
+    "elephantSubnetName": "[concat(parameters('virtualMachines_elephant_name'), 'subnet')]",
+    "elephantSubnetFullName": "[concat(variables('elephantVNETName'), '/', variables('elephantSubnetName'))]",
+    "elephantSubnetId": "[concat(parameters('elephantVNETId'), '/subnets/', variables('elephantSubnetName'))]",
+    "elephantNicName": "[concat(parameters('virtualMachines_elephant_name'), 'nic')]",
+    "elephantPipName": "[concat(parameters('virtualMachines_elephant_name'), 'pip')]",
+    "elephantLBName": "[concat(parameters('virtualMachines_elephant_name'), 'lb')]",
+    "elephantAddressPoolName": "[concat(parameters('virtualMachines_elephant_name'), 'ap')]",
+    "elephantNSGName":"[concat(parameters('virtualMachines_elephant_name'), 'nsg')]",
+    "elephantLBFEName":"[concat(parameters('virtualMachines_elephant_name'), 'lbfe')]",
+    "elephantLBRuleName":"[concat(parameters('virtualMachines_elephant_name'), 'lbrule')]",
+    "elephantLBProbeName":"[concat(parameters('virtualMachines_elephant_name'), 'lbprobe')]",
+    "location": "[resourceGroup().location]"
+  },
+  "parameters": {
+    "virtualMachines_elephant_name": {
+      "type": "string",
+      "defaultValue": "elephant"
+    },
+    "sshPublicKey": {
+      "type": "string",
+      "metadata": {
+        "description": "ssh public-key for connecting to the elephant"
+      }
+    },
+    "elephantVNETId": {
+      "type": "string",
+      "metadata": {
+        "description": "The full resource ID of the vnet to deploy into"
+      }
+    },
+    "elephantSubnetAddressPrefix": {
+      "type": "string",
+      "metadata": {
+        "description": "Address space of the subnet to add"
+      }
+    }
+  },
+  "resources": [
+    {
+      "apiVersion": "2018-02-01",
+      "type": "Microsoft.Network/virtualNetworks/subnets",
+      "name": "[variables('elephantSubnetFullName')]",
+      "location": "[variables('location')]",
+      "properties": {
+        "addressPrefix": "[parameters('elephantSubnetAddressPrefix')]"
+      }
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[parameters('virtualMachines_elephant_name')]",
+      "apiVersion": "2017-12-01",
+      "location": "[variables('location')]",
+      "properties": {
+          "hardwareProfile": {
+              "vmSize": "Standard_D2s_v3"
+          },
+          "storageProfile": {
+              "imageReference": {
+                  "publisher": "Canonical",
+                  "offer": "UbuntuServer",
+                  "sku": "18.04-LTS",
+                  "version": "latest"
+              },
+              "osDisk": {
+                "createOption": "FromImage",
+                "caching": "ReadWrite"
+              },
+              "dataDisks": []
+          },
+          "osProfile": {
+              "computerName": "[parameters('virtualMachines_elephant_name')]",
+              "adminUsername": "nubeva",
+              "linuxConfiguration": {
+                  "disablePasswordAuthentication": true,
+                  "ssh": {
+                      "publicKeys": [
+                          {
+                              "path": "/home/nubeva/.ssh/authorized_keys",
+                              "keyData": "[parameters('sshPublicKey')]"
+                          }
+                      ]
+                  }
+              },
+              "secrets": []
+          },
+          "networkProfile": {
+              "networkInterfaces": [
+                  {
+                      "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('elephantNicName'))]"
+                  }
+              ]
+          }
+      },
+      "dependsOn": [
+          "[resourceId('Microsoft.Network/networkInterfaces', variables('elephantNicName'))]"
+      ]
+  },
+  {
+    "type": "Microsoft.Network/publicIPAddresses",
+    "sku": {
+        "name": "Basic",
+        "tier": "Regional"
+    },
+    "name": "[variables('elephantPipName')]",
+    "apiVersion": "2018-02-01",
+    "location": "[variables('location')]",
+    "properties": {
+        "publicIPAddressVersion": "IPv4",
+        "publicIPAllocationMethod": "Dynamic",
+        "idleTimeoutInMinutes": 4
+    }
+},
+  {
+    "type": "Microsoft.Network/networkInterfaces",
+    "name": "[variables('elephantNicName')]",
+    "apiVersion": "2018-02-01",
+    "location": "[variables('location')]",
+    "properties": {
+        "ipConfigurations": [
+            {
+                "name": "ipconfig1",
+                "properties": {
+                    "privateIPAllocationMethod": "Dynamic",
+                    "publicIPAddress": {
+                        "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('elephantPipName'))]"
+                    },
+                    "subnet": {
+                        "id": "[variables('elephantSubnetId')]"
+                    },
+                    "primary": true,
+                    "privateIPAddressVersion": "IPv4",
+                    "loadBalancerBackendAddressPools": [
+                        {
+                            "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('elephantLBName')), '/backendAddressPools/', variables('elephantAddressPoolName'))]"
+                        }
+                    ]
+                }
+            }
+        ],
+        "networkSecurityGroup": {
+            "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('elephantNSGName'))]"
+        },
+        "primary": true
+    },
+    "dependsOn": [
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('elephantPipName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('elephantVNETName'), variables('elephantSubnetName'))]",
+        "[resourceId('Microsoft.Network/loadBalancers', variables('elephantLBName'))]",
+        "[resourceId('Microsoft.Network/networkSecurityGroups', variables('elephantNSGName'))]"
+    ]
+},{
+  "type": "Microsoft.Network/loadBalancers",
+  "sku": {
+      "name": "Basic"
+  },
+  "name": "[variables('elephantLBName')]",
+  "apiVersion": "2018-02-01",
+  "location": "[variables('location')]",
+  "properties": {
+      "frontendIPConfigurations": [
+          {
+              "name": "[variables('elephantLBFEName')]",
+              "properties": {
+                  "privateIPAllocationMethod": "Dynamic",
+                  "subnet": {
+                      "id": "[variables('elephantSubnetId')]"
+                  }
+              }
+          }
+      ],
+      "backendAddressPools": [
+          {
+              "name": "[variables('elephantAddressPoolName')]"
+          }
+      ],
+      "loadBalancingRules": [
+          {
+              "name": "[variables('elephantLBRuleName')]",
+              "properties": {
+                  "frontendIPConfiguration": {
+                      "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('elephantLBName')), '/frontendIPConfigurations/', variables('elephantLBFEName'))]"
+                  },
+                  "frontendPort": 4789,
+                  "backendPort": 4789,
+                  "idleTimeoutInMinutes": 4,
+                  "enableFloatingIP": false,
+                  "protocol": "Udp",
+                  "loadDistribution": "SourceIP",
+                  "backendAddressPool": {
+                    "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('elephantLBName')), '/backendAddressPools/', variables('elephantAddressPoolName'))]"
+                  },
+                  "probe": {
+                    "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('elephantLBName')), '/probes/', variables('elephantLBProbeName'))]"
+                  }
+              }
+          }
+      ],
+      "probes": [
+          {
+              "name": "[variables('elephantLBProbeName')]",
+              "properties": {
+                  "protocol": "Http",
+                  "port": 80,
+                  "requestPath": "/",
+                  "intervalInSeconds": 5,
+                  "numberOfProbes": 2
+              }
+          }
+      ],
+      "inboundNatRules": [],
+      "inboundNatPools": []
+  },
+  "dependsOn": [
+      "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('elephantVNETName'), variables('elephantSubnetName'))]"
+  ]
+},{
+  "type": "Microsoft.Network/networkSecurityGroups",
+  "name": "[variables('elephantNSGName')]",
+  "apiVersion": "2018-02-01",
+  "location": "[variables('location')]",
+  "properties": {
+      "securityRules": [
+          {
+              "name": "SSH",
+              "properties": {
+                  "provisioningState": "Succeeded",
+                  "protocol": "TCP",
+                  "sourcePortRange": "*",
+                  "destinationPortRange": "22",
+                  "sourceAddressPrefix": "*",
+                  "destinationAddressPrefix": "*",
+                  "access": "Allow",
+                  "priority": 300,
+                  "direction": "Inbound",
+                  "sourcePortRanges": [],
+                  "destinationPortRanges": [],
+                  "sourceAddressPrefixes": [],
+                  "destinationAddressPrefixes": []
+              }
+          }
+      ],
+      "defaultSecurityRules": [
+          {
+              "name": "AllowVnetInBound",
+              "properties": {
+                  "description": "Allow inbound traffic from all VMs in VNET",
+                  "protocol": "*",
+                  "sourcePortRange": "*",
+                  "destinationPortRange": "*",
+                  "sourceAddressPrefix": "VirtualNetwork",
+                  "destinationAddressPrefix": "VirtualNetwork",
+                  "access": "Allow",
+                  "priority": 65000,
+                  "direction": "Inbound",
+                  "sourcePortRanges": [],
+                  "destinationPortRanges": [],
+                  "sourceAddressPrefixes": [],
+                  "destinationAddressPrefixes": []
+              }
+          },
+          {
+              "name": "AllowAzureLoadBalancerInBound",
+              "properties": {
+                  "description": "Allow inbound traffic from azure load balancer",
+                  "protocol": "*",
+                  "sourcePortRange": "*",
+                  "destinationPortRange": "*",
+                  "sourceAddressPrefix": "AzureLoadBalancer",
+                  "destinationAddressPrefix": "*",
+                  "access": "Allow",
+                  "priority": 65001,
+                  "direction": "Inbound",
+                  "sourcePortRanges": [],
+                  "destinationPortRanges": [],
+                  "sourceAddressPrefixes": [],
+                  "destinationAddressPrefixes": []
+              }
+          },
+          {
+              "name": "DenyAllInBound",
+              "properties": {
+                  "description": "Deny all inbound traffic",
+                  "protocol": "*",
+                  "sourcePortRange": "*",
+                  "destinationPortRange": "*",
+                  "sourceAddressPrefix": "*",
+                  "destinationAddressPrefix": "*",
+                  "access": "Deny",
+                  "priority": 65500,
+                  "direction": "Inbound",
+                  "sourcePortRanges": [],
+                  "destinationPortRanges": [],
+                  "sourceAddressPrefixes": [],
+                  "destinationAddressPrefixes": []
+              }
+          },
+          {
+              "name": "AllowVnetOutBound",
+              "properties": {
+                  "description": "Allow outbound traffic from all VMs to all VMs in VNET",
+                  "protocol": "*",
+                  "sourcePortRange": "*",
+                  "destinationPortRange": "*",
+                  "sourceAddressPrefix": "VirtualNetwork",
+                  "destinationAddressPrefix": "VirtualNetwork",
+                  "access": "Allow",
+                  "priority": 65000,
+                  "direction": "Outbound",
+                  "sourcePortRanges": [],
+                  "destinationPortRanges": [],
+                  "sourceAddressPrefixes": [],
+                  "destinationAddressPrefixes": []
+              }
+          },
+          {
+              "name": "AllowInternetOutBound",
+              "properties": {
+                  "description": "Allow outbound traffic from all VMs to Internet",
+                  "protocol": "*",
+                  "sourcePortRange": "*",
+                  "destinationPortRange": "*",
+                  "sourceAddressPrefix": "*",
+                  "destinationAddressPrefix": "Internet",
+                  "access": "Allow",
+                  "priority": 65001,
+                  "direction": "Outbound",
+                  "sourcePortRanges": [],
+                  "destinationPortRanges": [],
+                  "sourceAddressPrefixes": [],
+                  "destinationAddressPrefixes": []
+              }
+          },
+          {
+              "name": "DenyAllOutBound",
+              "properties": {
+                  "description": "Deny all outbound traffic",
+                  "protocol": "*",
+                  "sourcePortRange": "*",
+                  "destinationPortRange": "*",
+                  "sourceAddressPrefix": "*",
+                  "destinationAddressPrefix": "*",
+                  "access": "Deny",
+                  "priority": 65500,
+                  "direction": "Outbound",
+                  "sourcePortRanges": [],
+                  "destinationPortRanges": [],
+                  "sourceAddressPrefixes": [],
+                  "destinationAddressPrefixes": []
+              }
+          }
+      ]
+  },
+  "dependsOn": []
+}
+  ],
+  "outputs": {}
+}
