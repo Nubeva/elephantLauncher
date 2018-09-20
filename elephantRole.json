@@ -1,0 +1,24 @@
+{
+    "Name":  "NubevaVTap",
+    "IsCustom":  true,
+    "Description":  "Role with minimum requirements for the Nubeva Elephant to operate",
+    "Actions":  [
+        "Microsoft.Network/virtualNetworkTaps/*",
+        "Microsoft.Network/networkInterfaces/tapConfigurations/*",
+        "Microsoft.Network/networkInterfaces/read",
+        "Microsoft.Network/loadBalancers/frontendIPConfigurations/join/action",
+        "Microsoft.Compute/virtualMachines/read"
+                ],
+    "NotActions":  [
+
+                   ],
+    "DataActions":  [
+
+                    ],
+    "NotDataActions":  [
+
+                       ],
+    "AssignableScopes":  [
+                             "/subscriptions/2acb0abe-d00f-4199-ba56-19f2304d2ab6"
+                         ]
+}

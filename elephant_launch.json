@@ -4,7 +4,7 @@
   "variables": {
     "elephantVNETName": "[parameters('elephantVNETName')]",
     "elephantVNETId": "[concat('/subscriptions/',variables('subscriptionId'), '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Network/virtualNetworks/', parameters('elephantVNETName'))]",
-    "elephantSubnetName": "[concat(parameters('elephantVMName'), 'subnet')]",
+    "elephantSubnetName": "[parameters('elephantSubnetName')]",
     "elephantSubnetFullName": "[concat(variables('elephantVNETName'), '/', variables('elephantSubnetName'))]",
     "elephantSubnetId": "[concat(variables('elephantVNETId'), '/subnets/', variables('elephantSubnetName'))]",
     "elephantNicName": "[concat(parameters('elephantVMName'), 'nic')]",
@@ -50,6 +50,7 @@
     },
     "sshPublicKey": {
       "type": "string",
+      "defaultValue": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC7nixevQuDUrilhE0WT4KCfsF6ZJwfE8sNy0m6RXZs2wnQTpDy74zwEiWPuBVRnNU9+S0i9Jo0hMLNfXyofTn6F+WTDvtcayNzWvQWCXFtHWL8+Z77loL56DYNm2WKDWkyjwlAc1n9mMJoEqx/OI1qQpp8QywY+g4hxKJ8lAMe3T+cehO3HrZuiaoSBF2ogpjvc59eLQjdN4o30E4y0qbPmL4XSqXUkA7ol8VLVwAr81xc6uZQgXGXEuAE5N4eIEjy26j+UyAuuBGEFHdH07XgWgPhTQ27kKzeBUQIWZY1GqopQ8Mrt6Cgy64xgmYMrY5X/X0yGQeCY5YsmhH1/yJt",
       "metadata": {
         "description": "ssh public-key for connecting to the elephant"
       }
@@ -60,8 +61,15 @@
         "description": "The name of the vnet within the deployed resourcegroup to deploy into"
       }
     },
+    "elephantSubnetName": {
+        "type":"string",
+        "metadata": {
+            "description": "The name of the subnet within the vnet to use for the elephant"
+        }
+    },
     "elephantSubnetAddressPrefix": {
       "type": "string",
+      "defaultValue": "",
       "metadata": {
         "description": "Address space of the subnet to add"
       }
@@ -71,6 +79,7 @@
     {
       "apiVersion": "2018-02-01",
       "type": "Microsoft.Network/virtualNetworks/subnets",
+      "condition":"[not(equals(parameters('elephantSubnetAddressPrefix'), ''))]",
       "name": "[variables('elephantSubnetFullName')]",
       "location": "[variables('location')]",
       "properties": {
