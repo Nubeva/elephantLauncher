@@ -67,7 +67,7 @@ then
 		echo "Chosing the one and only resource group"
 	else
 		set +e
-		getchoice "Please choose a vnet for the elephant to monitor" $(echo "$RGS" | jq -r '.[].name')
+		getchoice "Please choose the resource group that contains the vnet you want to monitor" $(echo "$RGS" | jq -r '.[].name')
 		rgNo=$?
 		set -e
 	fi
@@ -236,4 +236,4 @@ az group deployment create -g "$resourcegroup" \
 echo "Success."
 
 # If we got here, don't cleanup
-FAILURE=false
+export FAILURE=false
