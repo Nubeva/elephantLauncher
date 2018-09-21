@@ -3,7 +3,7 @@ set -e
 
 function cleanup {
 	# Remove artifacts if failure
-	if $failure
+	if $FAILURE
 	then
 		if [ ! -z "$azureClientId" ]
 		then
