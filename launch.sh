@@ -64,7 +64,7 @@ then
 	if [ $RGZ -eq 1 ]
 	then
 		rgNo=0
-		echo "Chosing one and only resource group"
+		echo "Chosing the one and only resource group"
 	else
 		set +e
 		getchoice "Please choose a vnet for the elephant to monitor" $(echo "$RGS" | jq -r '.[].name')
@@ -94,7 +94,7 @@ then
 	if [ $VNETZ -eq 1 ]
 	then
 		vnetNo=0
-		echo "Chosing one and only vnet"
+		echo "Chosing the one and only vnet"
 	else
 		set +e
 		getchoice "Please choose a vnet for the elephant to monitor" $(echo "$VNETS" | jq -r '.[].name')
@@ -120,13 +120,13 @@ then
 	SUBNETZ=$(echo "$SUBNETS" | jq -r 'length')
 	if [ $SUBNETZ -eq 0 ]
 	then
-	    echo "No vnets found."
+	    echo "No subnets found."
 		exit 1
 	fi
 	if [ $SUBNETZ -eq 1 ]
 	then
 		subnetNo=0
-		echo "Chosing one and only subnet"
+		echo "Chosing the one and only subnet"
 	else
 		set +e
 		getchoice "Please choose a subnet for the elephant" $(echo "$SUBNETS" | jq -r '.[].name')
