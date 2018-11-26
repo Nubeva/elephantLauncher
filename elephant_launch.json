@@ -40,6 +40,12 @@
             "description": "Service principal password"
         }
     },
+    "storageAccountName": {
+        "type":"string",
+        "metadata": {
+            "description": "storage account to use"
+        }
+    },
     "scriptDir": {
         "type": "string",
         "defaultValue": ""
@@ -73,8 +79,14 @@
       "metadata": {
         "description": "Address space of the subnet to add"
       }
-    }
-  },
+    },
+    "pspId": {
+        "type": "string",
+        "metadata": {
+          "description": "PSP Id to use"
+        }
+      }
+    },
   "resources": [
     {
       "apiVersion": "2018-02-01",
@@ -151,7 +163,7 @@
        "autoUpgradeMinorVersion":true,
        "settings": {
            "fileUris": [ "[variables('setupScriptUri')]" ],
-           "commandToExecute": "[concat('AZURE_SUBSCRIPTION_ID=',variables('subscriptionId'), ' AZURE_TENANT_ID=', variables('tenantId'), ' AZURE_CLIENT_ID=', parameters('azureClientId'), ' AZURE_CLIENT_SECRET=\"', parameters('azurePassword'),'\"', ' nutoken=', parameters('nuToken'), ' vnetid=',variables('elephantVNETId'), ' loadBalancerFrontEndTarget=',variables('loadBalancerFrontEndTarget'), ' resourceGroup=\"', resourceGroup().name, '\"', ' location=', variables('location'), ' scriptdir=\"', parameters('scriptDir'), '\" bash runit.sh')]"
+           "commandToExecute": "[concat('AZURE_STORAGE_ACCOUNT=\"', parameters('storageAccountName'),'\" AZURE_SUBSCRIPTION_ID=',variables('subscriptionId'), ' AZURE_TENANT_ID=', variables('tenantId'), ' AZURE_CLIENT_ID=', parameters('azureClientId'), ' AZURE_CLIENT_SECRET=\"', parameters('azurePassword'),'\"', ' nutoken=', parameters('nuToken'), ' vnetid=',variables('elephantVNETId'), ' loadBalancerFrontEndTarget=',variables('loadBalancerFrontEndTarget'), ' resourceGroup=\"', resourceGroup().name, '\"', ' location=', variables('location'), ' scriptdir=\"', parameters('scriptDir'), '\" pspid=\"', parameters('pspId'), '\" bash runit.sh')]"
        }
    },
    "dependsOn": [
@@ -417,5 +429,10 @@
   "dependsOn": []
 }
   ],
-  "outputs": {}
+  "outputs": {
+      "frontend": {
+    "type": "string",
+    "value": "[concat(reference(variables('elephantLBName')).frontendIpConfigurations[0].properties.privateIpAddress,':4789')]"
+  }
+}
 }
